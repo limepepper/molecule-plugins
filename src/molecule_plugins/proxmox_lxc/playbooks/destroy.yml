@@ -1,0 +1,63 @@
+---
+- name: Destroy
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  # no_log: "{{ molecule_no_log }}"
+  vars:
+    opt: "{{ molecule_yml.driver.options }}"
+    proxmox_conf:
+      api_host: '{{ opt.api_host | d(lookup("env", "PROXMOX_API_HOST")) }}'
+      api_user: '{{ opt.api_user | d(lookup("env", "PROXMOX_API_USER")) }}'
+      api_password: '{{ opt.api_password |
+        d(lookup("env", "PROXMOX_API_PASSWORD")) }}'
+      api_token_id: '{{ opt.api_token_id |
+        d(lookup("env", "PROXMOX_API_TOKEN_ID")) }}'
+      api_token_secret: '{{ opt.api_token_secret |
+        d(lookup("env", "PROXMOX_API_TOKEN_SECRET")) }}'
+      node: '{{ opt.node | d(lookup("env", "PROXMOX_API_NODE")) }}'
+    instances: '{{ lookup("file", molecule_instance_config, errors="ignore") | from_yaml }}'
+  tasks:
+    - name: Touch instance config to avoid errors
+      ansible.builtin.file:
+        path: "{{ molecule_instance_config }}"
+        state: touch
+        mode: "0600"
+      changed_when: false
+
+    - name: Read the instance config
+      ansible.builtin.slurp:
+        src: "{{ molecule_instance_config }}"
+      register: _instance_config
+
+    - name: Set the instance config
+      ansible.builtin.set_fact:
+        _conf: "{{ _instance_config['content'] | b64decode | from_yaml }}"
+        _instance_conf: "{{ _conf if _conf else [] }}"
+
+    - name: Load the distro specific vars
+      ansible.builtin.include_role:
+        name: limepepper.deployment.proxmox
+        public: true
+
+    - name: Run the Delete job
+      ansible.builtin.include_role:
+        name: limepepper.deployment.proxmox_lxc
+      vars:
+        proxmox_instances: "{{ _instance_conf }}"
+        proxmox_action: delete
+
+    - name: Populate instance config
+      # when: server.changed | default(false) | bool # noqa no-handler
+      ansible.builtin.set_fact:
+        instance_conf: []
+
+    - name: Dump instance config
+      ansible.builtin.copy:
+        content: |
+          ---
+          # Molecule managed
+
+          {{ instance_conf | to_json | from_json | to_nice_yaml }}
+        dest: "{{ molecule_instance_config }}"
+        mode: "0600"
