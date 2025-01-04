@@ -113,6 +113,9 @@
             timeout: 120
             storage: ""
           register: _new_clone_vm
+    #          environment:
+    #            REQUESTS_DEBUGGER: 1
+    #            PYTHONPATH: /home/tomhodder/Sync/projects/python/startup
 
     - name: Create new standard instance from ostemplate
       when: "instance.type == 'instance'"
@@ -154,41 +157,22 @@
       delay: 1
       register: started_vm
 
-    - name: Wait for the VM to boot - polling its status
-      ansible.builtin.uri:
-        # yamllint disable rule:quoted-strings
-        # yamllint disable rule:line-length
-        url: "https://{{ proxmox_conf.api_host }}:8006/api2/json/nodes/{{ proxmox_conf.node }}/lxc/{{ new_vm.vmid }}/status/current"
-        # yamllint enable rule:quoted-strings
-        # yamllint enable rule:line-length
-        validate_certs: false
-      until:
-        - vmdetails_status.status == 200
-        - vmdetails_status.json.data.status == 'running'
-      retries: 30
-      delay: 1
-      register: vmdetails_status
-
-    - name: Get VM details - query interfaces endpoint
-      ansible.builtin.uri:
-        # yamllint disable rule:quoted-strings
-        # yamllint disable rule:line-length
-        url: "https://{{ proxmox_conf.api_host }}:8006/api2/json/nodes/{{ proxmox_conf.node }}/lxc/{{ new_vm.vmid }}/interfaces"
-        # yamllint enable rule:quoted-strings
-        # yamllint enable rule:line-length
-        validate_certs: false
-      register: _vmdetails_interfaces
-      until:
-        - _vmdetails_interfaces.status == 200
-        - _vmdetails_interfaces.json.data|length > 1
-        - _vmdetails_interfaces.json.data | selectattr('name', 'eq', 'eth0') | map(attribute='inet') | list | length > 0
-        - _vmdetails_interfaces.json.data | selectattr('name', 'eq', 'eth0') | first | dict2items | selectattr('key', 'eq', 'inet') | list | length > 0
+    - name: Retrieve post-start info
+      community.general.proxmox_vm_info:
+        type: lxc
+        vmid: "{{ new_vm.vmid }}"
+        network: true
       retries: 10
       delay: 1
+      register: _vm_poststart_info
+      until:
+        - _vm_poststart_info.proxmox_vms[0].status == 'running'
 
     - name: Set fact if eth0 has inet
       ansible.builtin.set_fact:
-        address: "{{ _vmdetails_interfaces.json.data | selectattr('name', 'eq', instance.netifname) | map(attribute='inet') | first | split('/') | first }}"
+        address: "{{ _vm_poststart_info.proxmox_vms[0].network |
+          selectattr('name', 'eq', instance.netifname) |
+          map(attribute='inet') | first | split('/') | first }}"
 
     - name: Create the result entry
       ansible.builtin.set_fact:

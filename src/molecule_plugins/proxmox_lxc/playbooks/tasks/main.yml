@@ -84,11 +84,12 @@
       ansible.builtin.set_fact:
         proxmox_instances: |-
           {%- set _scenario = molecule_yml.scenario.name -%}
-          {%- set proxmox_instances=[] -%}
+          {%- set proxmox_instances = [] -%}
           {%- for _i in molecule_yml.platforms %}
-            {%- set _extra = {
-              "hostname": _scenario ~ "-" ~ _i.name,
-              } -%}
+            {%- set hostname = (_scenario ~ "-" ~ _i.name) |
+              replace("_", "-") |
+              regex_replace("[^a-zA-Z0-9\-]", "") -%}
+            {%- set _extra = {"hostname": hostname} -%}
             {%- if true and
               proxmox_instances.append(driver_options | combine(_i) | combine(_extra)) %}{%- endif %}
           {%- endfor %}
