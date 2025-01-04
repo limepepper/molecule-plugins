@@ -1,0 +1,38 @@
+---
+- name: Delete proxmox instance
+  tags: proxmox-delete-instance
+  block:
+    - name: Need to be provided with a vmid
+      ansible.builtin.assert:
+        that:
+          - instance.vmid is defined
+          - instance.vmid
+        fail_msg: "Need to be provided with a vmid"
+
+    - name: Retrieve information about the vm
+      community.general.proxmox_vm_info:
+        type: lxc
+        vmid: "{{ instance.vmid }}"
+      register: _vm_delete_info
+
+    - name: Assert 1 or none vms found
+      ansible.builtin.assert:
+        that: (_vm_delete_info.proxmox_vms | length) in [0,1]
+        fail_msg: |
+          Couldn't identify unique vm to delete
+          vms found were:
+          {{ _vm_delete_info.proxmox_vms | to_nice_yaml }}
+
+    - name: Stop the container
+      when: _vm_delete_info.proxmox_vms | length == 1
+      community.general.proxmox:
+        vmid: "{{ _vm_delete_info.proxmox_vms[0].vmid }}"
+        state: stopped
+
+    - name: Delete the container
+      when: _vm_delete_info.proxmox_vms | length == 1
+      community.general.proxmox:
+        vmid: "{{ _vm_delete_info.proxmox_vms[0].vmid }}"
+        state: absent
+      async: "{{ ansible_check_mode | ternary(0, 1000) }}"
+      poll: 0

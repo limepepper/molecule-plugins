@@ -5,49 +5,16 @@
   gather_facts: false
   # no_log: "{{ molecule_no_log }}"
   vars:
-    options: "{{ molecule_yml.driver.options }}"
-    proxmox_conf:
-      api_host: '{{ options.api_host | d(lookup("env", "PROXMOX_API_HOST")) }}'
-      api_user: '{{ options.api_user | d(lookup("env", "PROXMOX_API_USER")) }}'
-      api_password: '{{ options.api_password | d(lookup("env", "PROXMOX_API_PASSWORD")) }}'
-      api_token_id: '{{ options.api_token_id | d(lookup("env", "PROXMOX_API_TOKEN_ID")) }}'
-      api_token_secret: '{{ options.api_token_secret | d(lookup("env", "PROXMOX_API_TOKEN_SECRET")) }}'
-      node: '{{ options.node | d(lookup("env", "PROXMOX_API_NODE")) }}'
-    driver_options:
-      identity_file: "{{ options.identity_file | d(lookup('env', 'PROXMOX_CT_IDENTITY_FILE')) }}"
-      host_password: "{{ options.host_password | d(lookup('env', 'PROXMOX_CT_PASSWORD')) }}"
-
-  tasks:
-    - name: Show the options var
-      ansible.builtin.debug:
-        var: options
-
-    - name: Load the common vars
-      ansible.builtin.include_role:
-        name: limepepper.deployment.proxmox
-        public: true
-
-    - name: Create proxmox_hostname
+    _proxmox_changed: false # internal flag for tracking
+  handlers:
+    - name: Proxmox changed
       ansible.builtin.set_fact:
-        proxmox_instances: |-
-          {%- set _scenario = molecule_yml.scenario.name -%}
-          {%- set proxmox_instances=[] -%}
-          {%- for _i in molecule_yml.platforms %}
-            {%- set _extra = {
-              "hostname": _scenario ~ "-" ~ _i.name,
-              } -%}
-            {%- if true and
-              proxmox_instances.append(driver_options | combine(_i) | combine(_extra)) %}{%- endif %}
-          {%- endfor %}
-          {{ proxmox_instances }}
-
+        _proxmox_changed: true
+  tasks:
     - name: Run the create action
-      ansible.builtin.include_role:
-        name: limepepper.deployment.proxmox_lxc
+      ansible.builtin.include_tasks: tasks/main.yml
       vars:
         proxmox_action: create
-      # register: proxmox_action
-      # include_role doesn't support register, so uses "server" instead
 
     - name: Create instance config
       when: server.changed | default(false) | bool # noqa no-handler

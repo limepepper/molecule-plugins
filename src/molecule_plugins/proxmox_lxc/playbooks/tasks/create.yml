@@ -1,0 +1,216 @@
+---
+- name: Create proxmox instances
+  tags: proxmox-create-instance
+  vars:
+    _create_config: &_create_config
+      hostname: "{{ instance.hostname }}"
+      password: "{{ instance.host_password | d(omit) }}"
+      pubkey: "{{ lookup('ansible.builtin.file', instance.pubkey) }}"
+      ostemplate: "{{ instance.ostemplate }}"
+      # disk: 'local-lvm:20'
+      # disk_volume:
+      #      storage: local
+      #      size: 20
+      # storage: local
+      # disk: "{{ instance.storage }}{{ ':' + instance.disk if instance.disk is defined else '' }}"
+      storage: "{{ instance.storage }}"
+      cores: "{{ instance.cores | d(omit) }}"
+      memory: "{{ instance.memory | d(omit) }}"
+      swap: "{{ instance.swap | d(omit) }}"
+      onboot: "{{ instance.onboot | d(omit) }}"
+      hookscript: "{{ instance.hookscript | d(omit) }}"
+      tags: "{{ instance.tags | d(omit) }}"
+      #        features:
+      #          - 'lxc.apparmor.profile=unconfined'
+      netif:
+        net0: "name=eth0,ip=dhcp,bridge=vmbr0,firewall=1"
+      features:
+        - nesting=1
+  notify: Proxmox changed
+  block:
+    - name: Need to be provided with ostemplate if type is instance
+      when: "instance.type == 'instance'"
+      ansible.builtin.assert:
+        that:
+          - instance.ostemplate is defined
+          - instance.ostemplate
+          - instance.storage is defined
+          - instance.storage
+          - "instance.storage != 'local'"
+        fail_msg: |
+          One or more required variables are not set or are set incorrectly.
+          instance.ostemplate: "{{ instance.ostemplate | default('') }}"
+          instance.storage: "{{ instance.storage | default('') }}"
+          for instance: "{{ instance.name }}".
+          Note: storage cannot be "local" as that doesn't support ct volumes
+          Please set the following variables in your molecule.yml:
+          ---
+          driver:
+            name: molecule-proxmox-lxc
+            options:
+              ostemplate: local:vztmpl/rockylinux-9-default_20240912_amd64.tar.xz
+              storage: local-zfs
+            # or...
+          platforms:
+            - name: instance
+              ostemplate: local:vztmpl/rockylinux-9-default_20240912_amd64.tar.xz
+              storage: local-zfs
+              ...
+
+    - name: Need to be provided with clone_from_name if type is clone
+      when: "instance.type == 'clone'"
+      ansible.builtin.assert:
+        that:
+          - instance.clone_from_name is defined
+          - instance.clone_from_name
+        fail_msg: |
+          One or more required variables are not set:
+            instance.ostemplate: "{{ instance.ostemplate | default('') }}"
+            instance.clone: "{{ instance.clone | default('') }}"
+            instance.clone_from_name: "{{ instance.clone_from_name | default('') }}"
+          for instance.type: "{{ instance.type | default('') }}".
+          Please set the following variables in your molecule.yml:
+          ---
+          driver:
+            name: molecule-proxmox-lxc
+            options:
+              ostemplate: local:vztmpl/rockylinux-9-default_20240912_amd64.tar.xz
+              # or
+            clone: true
+            clone_from_name: "my-lxc-template-name"
+            # or...
+          platforms:
+            - name: instance
+              ostemplate: local:vztmpl/rockylinux-9-default_20240912_amd64.tar.xz
+              # or...
+              clone: true
+              clone_from_name: "my-lxc-template-name"
+              ...
+
+    - name: If instance type is clone
+      when: "instance.type == 'clone'"
+      block:
+        - name: Retrieve the clone source
+          community.general.proxmox_vm_info:
+            type: lxc
+            name: "{{ instance.clone_from_name }}"
+          retries: 5
+          delay: 1
+          register: _vm_clone_info
+
+        - name: Reject if we couldn't identify unique template
+          ansible.builtin.fail:
+            msg: "Couldn't identify unique clone source"
+          when: _vm_clone_info.proxmox_vms | length != 1
+
+        - name: Create new linked clone container
+          community.general.proxmox:
+            hostname: "{{ instance.hostname }}"
+            password: "{{ instance.host_password | d(omit) }}"
+            pubkey: "{{ lookup('ansible.builtin.file', instance.pubkey) }}"
+            clone: "{{ _vm_clone_info.proxmox_vms[0].vmid }}"
+            clone_type: linked
+            timeout: 120
+            storage: ""
+          register: _new_clone_vm
+
+    - name: Create new standard instance from ostemplate
+      when: "instance.type == 'instance'"
+      block:
+        - name: Create new unlinked container
+          community.general.proxmox:
+            <<: *_create_config
+          register: _new_vm
+
+    - name: Set the new new_vm depending on the type
+      ansible.builtin.set_fact:
+        new_vm:
+          vmid: "{{ _new_vm.vmid | d(_new_clone_vm.vmid) }}"
+          changed: "{{ _new_vm.vmid is defined | ternary(_new_vm.changed, _new_clone_vm.changed) }}"
+
+    - name: Retrieve pre-start info
+      community.general.proxmox_vm_info:
+        type: lxc
+        vmid: "{{ new_vm.vmid }}"
+        network: true
+      retries: 10
+      delay: 1
+      register: _vm_prestart_info
+
+    - name: Check whether we are trying to start a template
+      ansible.builtin.assert:
+        that:
+          - _vm_prestart_info.proxmox_vms[0].vmid is defined
+          - not _vm_prestart_info.proxmox_vms[0].template
+        fail_msg: "Cannot start a template"
+        success_msg: "Unique vm identified"
+
+    - name: Start the container
+      community.general.proxmox:
+        vmid: "{{ new_vm.vmid }}"
+        state: started
+        timeout: 30
+      retries: 5
+      delay: 1
+      register: started_vm
+
+    - name: Wait for the VM to boot - polling its status
+      ansible.builtin.uri:
+        # yamllint disable rule:quoted-strings
+        # yamllint disable rule:line-length
+        url: "https://{{ proxmox_conf.api_host }}:8006/api2/json/nodes/{{ proxmox_conf.node }}/lxc/{{ new_vm.vmid }}/status/current"
+        # yamllint enable rule:quoted-strings
+        # yamllint enable rule:line-length
+        validate_certs: false
+      until:
+        - vmdetails_status.status == 200
+        - vmdetails_status.json.data.status == 'running'
+      retries: 30
+      delay: 1
+      register: vmdetails_status
+
+    - name: Get VM details - query interfaces endpoint
+      ansible.builtin.uri:
+        # yamllint disable rule:quoted-strings
+        # yamllint disable rule:line-length
+        url: "https://{{ proxmox_conf.api_host }}:8006/api2/json/nodes/{{ proxmox_conf.node }}/lxc/{{ new_vm.vmid }}/interfaces"
+        # yamllint enable rule:quoted-strings
+        # yamllint enable rule:line-length
+        validate_certs: false
+      register: _vmdetails_interfaces
+      until:
+        - _vmdetails_interfaces.status == 200
+        - _vmdetails_interfaces.json.data|length > 1
+        - _vmdetails_interfaces.json.data | selectattr('name', 'eq', 'eth0') | map(attribute='inet') | list | length > 0
+        - _vmdetails_interfaces.json.data | selectattr('name', 'eq', 'eth0') | first | dict2items | selectattr('key', 'eq', 'inet') | list | length > 0
+      retries: 10
+      delay: 1
+
+    - name: Set fact if eth0 has inet
+      ansible.builtin.set_fact:
+        address: "{{ _vmdetails_interfaces.json.data | selectattr('name', 'eq', instance.netifname) | map(attribute='inet') | first | split('/') | first }}"
+
+    - name: Create the result entry
+      ansible.builtin.set_fact:
+        _result:
+          - hostname: "{{ instance.hostname }}"
+            address: "{{ address }}"
+            user: "{{ instance.host_user }}"
+            identity_file: "{{ instance.identity_file }}"
+            port: "{{ instance.host_port }}"
+            vmid: "{{ new_vm.vmid }}"
+            changed: "{{ new_vm.changed or started_vm.changed }}"
+
+    - name: Merge the exist instance infos
+      ansible.builtin.set_fact:
+        _result: "{{ instance | combine(_result) }}"
+
+    - name: Create the server list
+      ansible.builtin.set_fact:
+        _server:
+          results:
+            - "{{ _result }}"
+
+    - name: Merge facts
+      ansible.builtin.set_fact:
+        server: "{{ server | ansible.builtin.combine(_server, list_merge='append') }}"

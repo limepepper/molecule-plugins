@@ -9,8 +9,9 @@ while IFS='' read -r line; do DRIVER_NAMES+=("$line"); done < <(python "tools/ex
 
 cd test/roles
 for DRIVER_NAME in "${DRIVER_NAMES[@]}"; do
-  ansible-galaxy role init "${DRIVER_NAME}"plugin
-  cd "${DRIVER_NAME}"plugin
+  DRIVER_DIR="${DRIVER_NAME//-/_}plugin"
+  ansible-galaxy role init "$DRIVER_DIR"
+  cd "${DRIVER_DIR}"
   ansible localhost -o -m lineinfile -a 'path=meta/main.yml line="  namespace: roles" insertafter="  author: your name"'
   molecule init scenario --driver-name="${DRIVER_NAME}"
   sed \

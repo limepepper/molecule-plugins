@@ -87,6 +87,10 @@ vagrant = [
 openstack = [
     "openstacksdk >= 1.1.0"
 ]
+proxmox-lxc = [
+    "proxmoxer >= 2.2.0",
+    "requests",
+]
 
 [tool.ruff]
 ignore = [
@@ -139,6 +143,7 @@ gce = "molecule_plugins.gce.driver:GCE"
 podman = "molecule_plugins.podman.driver:Podman"
 vagrant = "molecule_plugins.vagrant.driver:Vagrant"
 openstack = "molecule_plugins.openstack.driver:Openstack"
+molecule-proxmox-lxc = "molecule_plugins.proxmox_lxc.driver:ProxmoxLxc"
 
 [tool.setuptools_scm]
 local_scheme = "no-local-version"

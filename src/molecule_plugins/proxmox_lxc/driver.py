@@ -1,9 +1,7 @@
-import os
-from pathlib import Path
+from importlib import import_module
 
 from molecule import logger, util
 from molecule.api import Driver
-from molecule_proxmox_lxc.data import __file__ as data_module
 
 LOG = logger.get_logger(__name__)
 
@@ -26,7 +24,7 @@ class ProxmoxLxc(Driver):
 
         $ python -m pip install -e 'git+https://github.com/limepepper/limepepper.common.git#egg=subdir&subdirectory='
 
-    """  # noqa
+    """
 
     def __init__(self, config=None):
         super().__init__(config)
@@ -44,12 +42,12 @@ class ProxmoxLxc(Driver):
     def login_cmd_template(self):
         connection_options = " ".join(self.ssh_connection_options)
         return (
-            "ssh {{address}} "
-            "-l {{user}} "
-            "-p {{port}} "
-            "-i {{identity_file}} "
-            "{}"
-        ).format(connection_options)
+            "ssh {address} "
+            "-l {user} "
+            "-p {port} "
+            "-i {identity_file} "
+            f"{connection_options}"
+        )
 
     @property
     def default_safe_files(self):
@@ -72,33 +70,36 @@ class ProxmoxLxc(Driver):
                 "ansible_port": d["port"],
                 "ansible_private_key_file": d["identity_file"],
                 "connection": "ssh",
-                "ansible_ssh_common_args": " ".join(self.ssh_connection_options),  # noqa: E501
+                "ansible_ssh_common_args": " ".join(
+                    self.ssh_connection_options,
+                ),
             }
         except StopIteration:
             return {}
-        except IOError:
+        except OSError:
             # Instance has yet to be provisioned, therefore the
             # instance_config is not on disk.
             return {}
 
     def _get_instance_config(self, instance_name):
-        instance_config_dict = util.safe_load_file(self._config.driver.instance_config)  # noqa: E501
+        instance_config_dict = util.safe_load_file(
+            self._config.driver.instance_config,
+        )
         return next(
-            item for item in instance_config_dict if item["instance"] == instance_name  # noqa: E501
+            item for item in instance_config_dict if item["instance"] == instance_name
         )
 
+    def _is_module_installed(self, module_name):
+        try:
+            import_module(module_name)
+            return True
+        except ModuleNotFoundError:
+            return False
+
     def sanity_checks(self):
-        pass
-
-    def template_dir(self):
-        """Return path to its own cookiecutterm templates. It is used by init
-        command in order to figure out where to load the templates from.
-        """
-        return os.path.join(os.path.dirname(__file__), "cookiecutter")
-
-    def modules_dir(self):
-        return os.path.join(os.path.dirname(__file__), "modules")
-
-    # def schema_file(self) -> str | None:
-    #     return str(Path(data_module).parent / "driver.json")
-
+        req_modules = {"proxmoxer": "proxmoxer"}
+        for module, pkg in req_modules.items():
+            if not self._is_module_installed(module):
+                util.sysexit_with_message(
+                    f'"{module}" not installed: pip install {pkg} should fix it.',
+                )

@@ -1,0 +1,115 @@
+---
+- name: Create proxmox instances
+  tags: proxmox-lxc
+  vars:
+    options: "{{ molecule_yml.driver.options }}"
+    proxmox_conf:
+      api_host: '{{ options.api_host | d(lookup("env", "PROXMOX_API_HOST")) }}'
+      api_user: '{{ options.api_user | d(lookup("env", "PROXMOX_API_USER")) }}'
+      api_password: '{{ options.api_password | d(lookup("env", "PROXMOX_API_PASSWORD")) }}'
+      api_token_id: '{{ options.api_token_id | d(lookup("env", "PROXMOX_API_TOKEN_ID")) }}'
+      api_token_secret: '{{ options.api_token_secret | d(lookup("env", "PROXMOX_API_TOKEN_SECRET")) }}'
+      node: '{{ options.node | d(lookup("env", "PROXMOX_API_NODE")) }}'
+    driver_options:
+      identity_file: "{{ options.identity_file | d(lookup('env', 'PROXMOX_CT_IDENTITY_FILE')) }}"
+      host_password: "{{ options.host_password | d(lookup('env', 'PROXMOX_CT_PASSWORD')) }}"
+      storage: "{{ options.storage | d(lookup('env', 'PROXMOX_CT_STORAGE')) }}"
+      netifname: "{{ options.netifname | d('eth0') }}"
+      netif:
+        net0: "name=eth0,ip=dhcp,bridge=vmbr0,firewall=1"
+    _proxmox_lxc_defaults:
+      type: instance # or clone
+      host_user: root # assume the container is created as root
+      host_port: 22
+      # cores: 2
+      # memory: 1024
+      # storage: local
+      # swap: 512
+      onboot: true
+      hookscript: "local:snippets/vm_hook.sh"
+      tags: []
+      identity_file: "~/.ssh/id_ed25519"
+      pubkey: "~/.ssh/id_ed25519.pub"
+  module_defaults:
+    community.general.proxmox_vm_info:
+      api_host: "{{ proxmox_conf.api_host }}"
+      api_user: "{{ proxmox_conf.api_user }}"
+      api_password: "{{ proxmox_conf.api_password }}"
+      node: "{{ proxmox_conf.node }}"
+    community.general.proxmox:
+      api_host: "{{ proxmox_conf.api_host }}"
+      api_user: "{{ proxmox_conf.api_user }}"
+      api_password: "{{ proxmox_conf.api_password }}"
+      node: "{{ proxmox_conf.node }}"
+    ansible.builtin.uri:
+      headers:
+        # yamllint disable rule:quoted-strings
+        # yamllint disable rule:line-length
+        Authorization: "PVEAPIToken={{ proxmox_conf.api_user }}!{{ proxmox_conf.api_token_id }}={{ proxmox_conf.api_token_secret }}"
+        # yamllint enable rule:quoted-strings
+        # yamllint enable rule:line-length
+  block:
+    - name: Check vars are set
+      ansible.builtin.assert:
+        that:
+          - proxmox_conf
+          - proxmox_conf.api_host
+          - proxmox_conf.api_user
+          - proxmox_conf.api_password
+          - proxmox_conf.api_token_id
+          - proxmox_conf.api_token_secret
+          - proxmox_conf.node
+        fail_msg: |
+          One or more required variables are not set {{ proxmox_conf | dict2items | selectattr("value", "==", "") | list }}.
+          Please set the following variables in your molecule.yml:
+          - driver:
+              name: molecule-proxmox-lxc
+              options:
+                api_host: "your_proxmox_host"
+                api_user: "your_proxmox_user"
+                api_password: "your_proxmox_password"
+                api_token_id: "your_proxmox_token_id"
+                api_token_secret: "your_proxmox_token_secret"
+                node: "your_proxmox_node"
+
+    - name: Show the options var
+      ansible.builtin.debug:
+        var: options
+
+    - name: Show the proxmox_conf var
+      ansible.builtin.debug:
+        var: proxmox_conf
+
+    - name: Create proxmox_instances by merging
+      ansible.builtin.set_fact:
+        proxmox_instances: |-
+          {%- set _scenario = molecule_yml.scenario.name -%}
+          {%- set proxmox_instances=[] -%}
+          {%- for _i in molecule_yml.platforms %}
+            {%- set _extra = {
+              "hostname": _scenario ~ "-" ~ _i.name,
+              } -%}
+            {%- if true and
+              proxmox_instances.append(driver_options | combine(_i) | combine(_extra)) %}{%- endif %}
+          {%- endfor %}
+          {{ proxmox_instances }}
+
+    - name: Create empty config
+      ansible.builtin.set_fact:
+        server:
+          results: []
+
+    - name: Process Lxc instances
+      ansible.builtin.include_tasks: "{{ proxmox_action }}.yml"
+      vars:
+        instance: "{{ _proxmox_lxc_defaults | combine(_instance) }}"
+      loop_control:
+        loop_var: _instance
+      loop: "{{ proxmox_instances }}"
+
+    - name: Set the changed flag
+      ansible.builtin.set_fact:
+        server: "{{ server | combine({'changed': true}) }}"
+
+    - name: Notify the update handler
+      ansible.builtin.meta: flush_handlers
