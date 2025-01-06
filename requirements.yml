@@ -12,4 +12,4 @@ collections:
     version: ">=1.8.0"
   - name: community.vagrant
   - name: openstack.cloud
-  - name: /home/tomhodder/git/ansible-community-general
+  - name: community.general

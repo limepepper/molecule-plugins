@@ -1,20 +1,48 @@
 ---
 driver:
   name: molecule-proxmox-lxc
+  property: value
+  options:
+    # managed: true
+    something: else
 dependency:
   name: galaxy
 platforms:
-  - name: rocky-9-clone
-    type: clone
-    clone_from_name: tmpl-rocky-9-default-v1
+  #  - name: rocky-9-clone
+  #    type: clone
+  #    clone_from_name: tmpl-rocky-9-default-v1
+  - name: instance
+    ostemplate: "local:vztmpl/ubuntu-22.04-standard_22.04-1_amd64.tar.zst"
+    disk: "local-lvm-thin:6"
+  - name: instance3
+    ostemplate: "local:vztmpl/ubuntu-22.04-standard_22.04-1_amd64.tar.zst"
+    storage: "local-zfs"
 #  - name: rocky-8-clone
+#    type: clone
+#    clone_from_name: tmpl-rocky-8-default-v1
+#  - name: rocky-9-clone2
+#    type: clone
+#    clone_from_name: tmpl-rocky-9-default-v1
+#  - name: rocky-8-clone2
+#    type: clone
+#    clone_from_name: tmpl-rocky-8-default-v1
+#  - name: rocky-9-clone3
+#    type: clone
+#    clone_from_name: tmpl-rocky-9-default-v1
+#  - name: rocky-8-clone3
+#    type: clone
+#    clone_from_name: tmpl-rocky-8-default-v1
+#  - name: rocky-9-clone4
+#    type: clone
+#    clone_from_name: tmpl-rocky-9-default-v1
+#  - name: rocky-8-clone4
 #    type: clone
 #    clone_from_name: tmpl-rocky-8-default-v1
 provisioner:
   name: ansible
   config_options:
     defaults:
-      verbosity: 3
+      verbosity: 2
       stdout_callback: yaml
       # callbacks_enabled: ansible.posix.profile_tasks
       diff: true

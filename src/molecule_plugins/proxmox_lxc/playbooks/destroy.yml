@@ -6,6 +6,8 @@
   # no_log: "{{ molecule_no_log }}"
   vars:
     _proxmox_changed: false # internal flag for tracking
+  vars_files:
+    - vars/main.yml
   handlers:
     - name: Proxmox changed
       ansible.builtin.set_fact:
@@ -34,11 +36,28 @@
       ansible.builtin.set_fact:
         _instance_conf: "{{ _conf if _conf else [] }}"
 
-    - name: Run the Delete job
-      ansible.builtin.include_tasks: tasks/main.yml
-      vars:
-        proxmox_instances: "{{ _instance_conf }}"
-        proxmox_action: destroy
+    - name: Create Instance Config # noqa: syntax-check[unknown-module] syntax-check[unknown-module]
+      instance_config:
+        env_prefix: "PROXMOX_"
+        driver_defaults: "{{ molecule_yml.driver.driver_defaults | default({}) }}"
+        proxmox_conf: "{{ molecule_yml.driver.proxmox_conf | default({}) }}"
+        platforms: "{{ molecule_yml.platforms }}"
+        scenario_name: "{{ molecule_yml.scenario.name }}"
+        instance_config: "{{ _instance_conf | from_yaml }}"
+      register: instance_config
+
+    - name: Destroy the Instances
+      molecule_proxmox_lxc:
+        proxmox_instances: "{{ instance_config.instances }}"
+        proxmox_conf: "{{ instance_config.proxmox_conf }}"
+        state: absent
+      register: server
+
+    #    - name: Run the Destroy task
+    #      ansible.builtin.include_tasks: tasks/main.yml
+    #      vars:
+    #        proxmox_instances: "{{ _instance_conf }}"
+    #        proxmox_action: destroy
 
     - name: Populate instance config
       # when: server.changed | default(false) | bool # noqa no-handler

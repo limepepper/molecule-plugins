@@ -1,0 +1,22 @@
+---
+- name: Verify
+  hosts: all
+  tasks:
+    - name: Get stats of a file
+      ansible.builtin.stat:
+        path: /
+      register: rootfs_stat
+
+    - name: Check if the rootfs is a directory
+      ansible.builtin.assert:
+        that:
+          - rootfs_stat.stat.isdir
+
+    - name: Check if the rootfs is owned by root
+      ansible.builtin.assert:
+        that:
+          - rootfs_stat.stat.uid == 0
+
+    - name: Show the rootfs stats
+      ansible.builtin.debug:
+        var: rootfs_stat.stat

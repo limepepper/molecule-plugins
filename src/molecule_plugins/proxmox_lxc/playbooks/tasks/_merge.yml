@@ -1,0 +1,34 @@
+---
+- name: Merge ENV, defaults, vars, and extra vars
+  tags: proxmox-lxc-merge
+  block:
+    - name: Show the options var
+      ansible.builtin.debug:
+        var: options
+
+    - name: Show the proxmox_conf var
+      ansible.builtin.debug:
+        var: proxmox_conf
+
+    - name: Show the proxmox_instances var
+      ansible.builtin.debug:
+        var: proxmox_instances
+
+    - name: Create proxmox_instances by merging
+      ansible.builtin.set_fact:
+        proxmox_instances: |-
+          {%- set _scenario = molecule_yml.scenario.name -%}
+          {%- set proxmox_instances = [] -%}
+          {%- for _i in molecule_yml.platforms %}
+            {%- set hostname = (_scenario ~ "-" ~ _i.name) |
+              replace("_", "-") |
+              regex_replace("[^a-zA-Z0-9\-]", "") -%}
+            {%- set _extra = {"hostname": hostname} -%}
+            {%- if true and
+              proxmox_instances.append(driver_env | combine(driver_opts) |  combine(_extra) | combine(_i)) %}{%- endif %}
+          {%- endfor %}
+          {{ proxmox_instances }}
+
+    - name: Show the proxmox_instances var
+      ansible.builtin.debug:
+        var: proxmox_instances
