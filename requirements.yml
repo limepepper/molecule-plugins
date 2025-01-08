@@ -13,3 +13,4 @@ collections:
   - name: community.vagrant
   - name: openstack.cloud
   - name: community.general
+    version: ">9.1.0"

@@ -1,7 +1,8 @@
 #!/usr/bin/python
-# Make coding more python3-ish, this is required for contributions to Ansible
+# ruff: noqa: UP008
 
 import os
+import syslog
 
 from ansible.errors import (
     AnsibleActionFail,
@@ -11,7 +12,6 @@ from ansible.plugins.action import ActionBase
 from ansible.utils.display import Display
 
 display = Display()
-import syslog  # noqa: E402
 
 
 class ActionModule(ActionBase):
@@ -21,7 +21,7 @@ class ActionModule(ActionBase):
 
     def run(self, tmp=None, task_vars=None):
         if task_vars is None:
-            task_vars = dict()
+            task_vars = {}
 
         validation_result, new_module_args = self.validate_argument_spec(
             argument_spec={
@@ -41,9 +41,6 @@ class ActionModule(ActionBase):
         del tmp  # tmp no longer has any effect
         result["instances"] = []
 
-        # get task verbosity
-        verbosity = new_module_args["verbosity"]
-
         env_prefix = self._task.args.get("env_prefix", None)
         driver_defaults = self._task.args.get("driver_defaults", None)
         platforms = self._task.args.get("platforms", None)
@@ -53,18 +50,24 @@ class ActionModule(ActionBase):
 
         if not isinstance(new_module_args["env_prefix"], string_types):
             msg = "Invalid type supplied for env_prefix, it must be a string"
+            raise AnsibleActionFail(msg)
 
         if not isinstance(driver_defaults, dict):
             msg = "Invalid type supplied for driver_defaults, it must be a dict"
+            raise AnsibleActionFail(msg)
 
         if not isinstance(platforms, list):
             msg = "Invalid type supplied for platforms, it must be a list"
+            raise AnsibleActionFail(msg)
 
         if not (env_prefix and platforms):
-            raise AnsibleActionFail("Invalid arguments supplied")
+            msg = "Invalid arguments supplied"
+            raise AnsibleActionFail(msg)
 
         proxmox_vars = {k: v for k, v in os.environ.items() if k.startswith("PROXMOX_")}
-        self._display.debug(f"Proxmox environment variables: {proxmox_vars}")
+        self._display.debug(
+            f"Proxmox environment variables: {proxmox_vars}",
+        )
 
         proxmox_conf_env = {
             "api_host": os.environ.get("PROXMOX_API_HOST"),
@@ -112,7 +115,7 @@ class ActionModule(ActionBase):
         result["instance_defaults"] = instance_defaults
         result["driver_defaults"] = driver_defaults
 
-        _instanct_dict = dict()
+        _instanct_dict = {}
         if instance_config:
             for _instance in instance_config:
                 _instanct_dict[_instance["instance"]] = _instance

@@ -24,7 +24,6 @@
         proxmox_conf: "{{ instance_config.proxmox_conf }}"
         state: started
       register: server
-      timeout: 300
 
     - name: Create instance config
       # when: server.changed | default(false) | bool # noqa no-handler
