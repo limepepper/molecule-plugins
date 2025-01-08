@@ -701,32 +701,28 @@ class ActionModule(ActionBase):
         for instance in proxmox_instances:
             if any(key in instance for key in ["clone_from_name", "clone_from_id"]):
                 if "clone_from_id" in instance:
-                    if (
-                        instance.get("clone_from_id")
-                        and instance["clone_from_id"] in vms_by_id
-                    ):
-                        clone_vmid = instance["clone_from_id"]
+                    clone_vm = vms_by_id.get(instance["clone_from_id"])
                 else:
                     clone_vm = vms_by_name.get(instance["clone_from_name"])
-                    if clone_vm:
-                        node_dict[instance["name"]].create_args.update(
-                            {
-                                "clone": clone_vm["vmid"],
-                                "clone_type": instance["clone_type"],
-                                "storage": "",
-                                "hostname": instance["proxmox_hostname"],
-                                "timeout": 180,
-                                "state": "present",
-                                "description": "Managed by molecule-proxmox-lxc",
-                            },
-                        )
-                    else:
-                        raise AnsibleActionFail(
-                            "Unable to find clone from target for {} for {}".format(
-                                instance["clone_from_name"],
-                                instance,
-                            ),
-                        )
+                if clone_vm:
+                    node_dict[instance["name"]].create_args.update(
+                        {
+                            "clone": clone_vm["vmid"],
+                            "clone_type": instance["clone_type"],
+                            "storage": "",
+                            "hostname": instance["proxmox_hostname"],
+                            "timeout": 180,
+                            "state": "present",
+                            "description": "Managed by molecule-proxmox-lxc",
+                        },
+                    )
+                else:
+                    raise AnsibleActionFail(
+                        "Unable to find clone from target for {} for {}".format(
+                            clone_vm,
+                            instance,
+                        ),
+                    )
             elif "ostemplate" in instance:
                 display.display("processing full instance {}".format(instance["name"]))
                 # module = module_loader.get("community.general.proxmox")
