@@ -44,14 +44,14 @@ def _get_proxmox_api(api):
             "name": "default",
             "instance_count": 2,
         },
-        # {
-        #     "name": "linked_clones",
-        #     "instance_count": 8,
-        # },
-        # {
-        #     "name": "various_disks",
-        #     "instance_count": 3,
-        # },
+        {
+            "name": "linked_clones",
+            "instance_count": 8,
+        },
+        {
+            "name": "various_disks",
+            "instance_count": 3,
+        },
     ],
 )
 def test_proxmox_lxc_scenarios(temp_dir, proxmox_api, scenario):

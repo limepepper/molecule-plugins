@@ -1,5 +1,4 @@
 #!/usr/bin/python
-# Make coding more python3-ish, this is required for contributions to Ansible
 # ruff: noqa: UP032, SLF001, UP008
 import json
 import logging
@@ -117,7 +116,7 @@ class ActionModule(ActionBase):
         module_state = new_module_args["state"]
 
         start = utcnow()
-        display.display("start: %s" % str(start))
+        display.display("start: {}".format(str(start)))
 
         #
         # Attempt to handle some timeout cases
