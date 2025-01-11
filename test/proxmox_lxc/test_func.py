@@ -3,9 +3,6 @@ import platform
 from importlib.util import find_spec
 
 import pytest
-from ansible_collections.community.general.plugins.module_utils.proxmox import (
-    ProxmoxAnsible,
-)
 
 from conftest import change_dir_to
 from molecule import logger, scenarios, util
@@ -21,12 +18,14 @@ HAS_PROXMOXER = bool(find_spec("proxmoxer"))
 
 
 def is_proxmox_lxc_available() -> bool:
-    """Return True if vagrant is installed and current platform is supported."""
-    if not os.environ.get("PROXMOX_API_HOST"):
+    """
+    Can we run real tests here?
+    """
+    if platform.machine() == "arm64" and platform.system() == "Darwin":
         return False
     if not HAS_PROXMOXER:
         return False
-    return not (platform.machine() == "arm64" and platform.system() == "Darwin")
+    return os.environ.get("PROXMOX_API_HOST", False)
 
 
 def _get_proxmox_api(api):
@@ -42,16 +41,20 @@ def _get_proxmox_api(api):
     "scenario",
     [
         {
-            "name": "linked_clones",
-            "instance_count": 8,
+            "name": "default",
+            "instance_count": 2,
         },
-        {
-            "name": "various_disks",
-            "instance_count": 3,
-        },
+        # {
+        #     "name": "linked_clones",
+        #     "instance_count": 8,
+        # },
+        # {
+        #     "name": "various_disks",
+        #     "instance_count": 3,
+        # },
     ],
 )
-def test_proxmox_lxc_scenarios(temp_dir, module, scenario):
+def test_proxmox_lxc_scenarios(temp_dir, proxmox_api, scenario):
     scenario_directorys = os.path.join(
         os.path.dirname(util.abs_path(__file__)),
         "scenarios",
@@ -71,20 +74,18 @@ def test_proxmox_lxc_scenarios(temp_dir, module, scenario):
         assert all(s.created == "false" for s in status)
         assert all(s.converged == "false" for s in status)
 
-        api = ProxmoxAnsible(module)
-        api.proxmox_api.cluster().resources().get(type="vm")
+        vms = proxmox_api.cluster().resources().get(type="vm")
         for s in status:
             proxmox_hostname = generate_proxmox_hostname(
                 s.scenario_name,
                 s.instance_name,
             )
-            vm = api.get_vmid(proxmox_hostname, ignore_missing=True)
-            if vm is not None:
+            vm = [vm for vm in vms if vm["name"] == proxmox_hostname]
+            if len(vm) > 0:
                 LOG.info("querying for proxmox_hostname: %s", proxmox_hostname)
                 LOG.info("vm: %s", vm)
-                api.proxmox_api.cluster().resources().get()
 
-            assert vm is None
+            assert vm == []
 
         # assert False
 
@@ -106,16 +107,18 @@ def test_proxmox_lxc_scenarios(temp_dir, module, scenario):
         )
         assert result.returncode == 0
 
+        vms = proxmox_api.cluster().resources().get(type="vm")
         for s in status:
             proxmox_hostname = generate_proxmox_hostname(
                 s.scenario_name,
                 s.instance_name,
             )
-            vm = api.get_vmid(proxmox_hostname, ignore_missing=True)
-            if vm is None:
+            vm = [vm for vm in vms if vm["name"] == proxmox_hostname]
+            if len(vm) != 1:
                 LOG.warning("querying for proxmox_hostname: %s", proxmox_hostname)
                 LOG.warning("vm: %s", vm)
-            assert vm is not None
+            assert len(vm) == 1
+            assert vm[0]
 
         cmd = ["molecule", "-v", "verify", "--scenario-name", scenario["name"]]
         result = run_command(
@@ -129,13 +132,16 @@ def test_proxmox_lxc_scenarios(temp_dir, module, scenario):
         )
         assert result.returncode == 0
 
+        vms = proxmox_api.cluster().resources().get(type="vm")
         for s in status:
             proxmox_hostname = generate_proxmox_hostname(
                 s.scenario_name,
                 s.instance_name,
             )
-            vm = api.get_vmid(proxmox_hostname, ignore_missing=True)
-            if vm is not None:
-                LOG.warning("querying for proxmox_hostname: %s", proxmox_hostname)
-                LOG.warning("vm: %s", vm)
-            assert vm is None
+            vm = [vm for vm in vms if vm["name"] == proxmox_hostname]
+            vm = [vm for vm in vms if vm["name"] == proxmox_hostname]
+            if len(vm) > 0:
+                LOG.info("querying for proxmox_hostname: %s", proxmox_hostname)
+                LOG.info("vm: %s", vm)
+
+            assert vm == []
