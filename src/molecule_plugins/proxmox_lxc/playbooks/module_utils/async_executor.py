@@ -1,11 +1,10 @@
 # ruff: noqa: UP032, SLF001
 
+import datetime
 import os
 import syslog
 import time
 from collections import defaultdict
-
-from ansible.module_utils.compat.datetime import utcnow
 
 
 class AnsibleAsyncExecutor:
@@ -30,7 +29,7 @@ class AnsibleAsyncExecutor:
 
         job_results = defaultdict(dict)
 
-        jobs_start = utcnow() - start
+        jobs_start = datetime.datetime.now()
 
         jobs = {}
         for key, job in job_list.items():
@@ -42,7 +41,7 @@ class AnsibleAsyncExecutor:
                 logger(
                     "Running queue: '{}' elapsed({})".format(
                         job["description"],
-                        round(jobs_start.total_seconds(), 2),
+                        round((start - jobs_start).total_seconds(), 2),
                     ),
                 )
             jobs[key] = action_module._execute_module(
@@ -75,7 +74,7 @@ class AnsibleAsyncExecutor:
                         job_results[key]["state"] = "finished"
                     job_results[key]["key"] = key
                     job_results[key]["elapsed"] = round(
-                        (utcnow() - start).total_seconds(),
+                        (datetime.datetime.now() - jobs_start).total_seconds(),
                         2,
                     )
                     job_results[key]["module_name"] = job_list[key]["module_name"]

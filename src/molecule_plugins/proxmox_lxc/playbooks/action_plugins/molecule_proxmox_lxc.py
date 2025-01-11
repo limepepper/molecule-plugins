@@ -1,5 +1,6 @@
 #!/usr/bin/python
 # ruff: noqa: UP032, SLF001, UP008
+import datetime
 import json
 import logging
 import syslog
@@ -9,7 +10,6 @@ from io import StringIO
 from ansible.errors import (
     AnsibleActionFail,
 )
-from ansible.module_utils.compat.datetime import utcnow
 from ansible.plugins.action import ActionBase
 from ansible.utils.display import Display
 from ansible.utils.vars import merge_hash
@@ -115,7 +115,7 @@ class ActionModule(ActionBase):
         proxmox_instances = new_module_args["proxmox_instances"]
         module_state = new_module_args["state"]
 
-        start = utcnow()
+        start = datetime.datetime.now()
         display.display("start: {}".format(str(start)))
 
         #
