@@ -13,7 +13,7 @@ platforms:
   - name: instance2
     ostemplate: "local:vztmpl/ubuntu-22.04-standard_22.04-1_amd64.tar.zst"
     storage: "local-lvm-thin"
-    hookscript: 'local:snippets/vm_hook.sh'
+    hookscript: "local:snippets/vm_hook.sh"
     netif:
       net0: "name=eth0,ip=dhcp,bridge=vmbr0,firewall=1,tag=11"
 provisioner:
