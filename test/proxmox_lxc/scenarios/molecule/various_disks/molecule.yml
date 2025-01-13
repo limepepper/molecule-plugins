@@ -7,12 +7,15 @@ platforms:
   - name: instance1
     ostemplate: "local:vztmpl/ubuntu-22.04-standard_22.04-1_amd64.tar.zst"
     disk: "local-lvm-thin:20"
+    hookscript: 'local:snippets/vm_hook.sh'
   - name: instance2
     ostemplate: "local:vztmpl/ubuntu-22.04-standard_22.04-1_amd64.tar.zst"
     storage: "local-lvm-thin"
+    hookscript: 'local:snippets/vm_hook.sh'
   - name: instance3
     ostemplate: "local:vztmpl/ubuntu-22.04-standard_22.04-1_amd64.tar.zst"
     storage: "local-zfs"
+    hookscript: 'local:snippets/vm_hook.sh'
 provisioner:
   name: ansible
   config_options:

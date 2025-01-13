@@ -257,19 +257,27 @@ class LxcNode:
         elif "ostemplate" in self.instance:
             display.display("processing full instance {}".format(self.instance["name"]))
             arg_spec = [
-                "ostemplate",
-                "storage",
+                "cores",
                 "cpus",
                 "cpuunits",
-                "cores",
-                "memory",
-                "swap",
-                "netif",
-                "onboot",
                 "disk",
                 "features",
-                "tags",
                 "hookscript",
+                "ip_address",
+                "memory",
+                "memory",
+                "nameserver",
+                "netif",
+                "onboot",
+                "ostemplate",
+                "ostype",
+                "pool",
+                "searchdomain",
+                "startup",
+                "storage",
+                "swap",
+                "tags",
+                "timezone",
             ]
             valid_args = {k: v for k, v in self.instance.items() if k in arg_spec}
             self.create_args.update(valid_args)
