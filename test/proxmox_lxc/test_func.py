@@ -12,7 +12,7 @@ from molecule_plugins.proxmox_lxc.playbooks.module_utils.molecule_proxmox_lxc im
     generate_proxmox_hostname,
 )
 
-LOG = logger.get_logger(__name__)
+LOG = logger.get_logger("test.proxmox_lxc")
 
 HAS_PROXMOXER = bool(find_spec("proxmoxer"))
 
