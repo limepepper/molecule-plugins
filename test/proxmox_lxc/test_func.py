@@ -1,3 +1,4 @@
+import logging
 import os
 import platform
 from importlib.util import find_spec
@@ -5,14 +6,14 @@ from importlib.util import find_spec
 import pytest
 
 from conftest import change_dir_to
-from molecule import logger, scenarios, util
+from molecule import scenarios, util
 from molecule.command import base
 from molecule.util import run_command
 from molecule_plugins.proxmox_lxc.playbooks.module_utils.molecule_proxmox_lxc import (
     generate_proxmox_hostname,
 )
 
-LOG = logger.get_logger("test.proxmox_lxc")
+logger = logging.getLogger("test.proxmox_lxc")
 
 HAS_PROXMOXER = bool(find_spec("proxmoxer"))
 
@@ -82,8 +83,8 @@ def test_proxmox_lxc_scenarios(temp_dir, proxmox_api, scenario):
             )
             vm = [vm for vm in vms if vm["name"] == proxmox_hostname]
             if len(vm) > 0:
-                LOG.info("querying for proxmox_hostname: %s", proxmox_hostname)
-                LOG.info("vm: %s", vm)
+                logger.info("querying for proxmox_hostname: %s", proxmox_hostname)
+                logger.info("vm: %s", vm)
 
             assert vm == []
 
@@ -115,8 +116,8 @@ def test_proxmox_lxc_scenarios(temp_dir, proxmox_api, scenario):
             )
             vm = [vm for vm in vms if vm["name"] == proxmox_hostname]
             if len(vm) != 1:
-                LOG.warning("querying for proxmox_hostname: %s", proxmox_hostname)
-                LOG.warning("vm: %s", vm)
+                logger.warning("querying for proxmox_hostname: %s", proxmox_hostname)
+                logger.warning("vm: %s", vm)
             assert len(vm) == 1
             assert vm[0]
 
@@ -139,9 +140,8 @@ def test_proxmox_lxc_scenarios(temp_dir, proxmox_api, scenario):
                 s.instance_name,
             )
             vm = [vm for vm in vms if vm["name"] == proxmox_hostname]
-            vm = [vm for vm in vms if vm["name"] == proxmox_hostname]
             if len(vm) > 0:
-                LOG.info("querying for proxmox_hostname: %s", proxmox_hostname)
-                LOG.info("vm: %s", vm)
+                logger.info("querying for proxmox_hostname: %s", proxmox_hostname)
+                logger.info("vm: %s", vm)
 
             assert vm == []

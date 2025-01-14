@@ -13,7 +13,6 @@ from ansible.errors import (
 from ansible.plugins.action import ActionBase
 from ansible.utils.display import Display
 from ansible.utils.vars import merge_hash
-from pygelf import GelfTcpHandler
 from rich.console import Console
 
 from molecule_plugins.proxmox_lxc.playbooks.module_utils.async_executor import (
@@ -27,20 +26,8 @@ from molecule_plugins.proxmox_lxc.playbooks.module_utils.molecule_proxmox_lxc im
     get_cluster_info,
 )
 
-display = Display()
-
-GRAYLOG_PORT = 12201
-GRAYLOG_SERVER_IP = "docker.lan"
-
 logger = logging.getLogger("proxmox_lxc")
-logger.setLevel(logging.INFO)
-logger.addHandler(
-    GelfTcpHandler(
-        host=GRAYLOG_SERVER_IP,
-        port=GRAYLOG_PORT,
-        include_extra_fields=True,
-    ),
-)
+display = Display()
 
 
 def rich_to_ansi(data: dict) -> str:

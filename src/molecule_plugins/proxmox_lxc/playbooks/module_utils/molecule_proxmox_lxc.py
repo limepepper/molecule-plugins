@@ -21,9 +21,9 @@ from molecule_plugins.proxmox_lxc.playbooks.module_utils.async_executor import (
 GRAYLOG_PORT = 12201
 GRAYLOG_SERVER_IP = "docker.lan"
 
-logger = logging.getLogger("proxmox_lxc")
-logger.setLevel(logging.INFO)
-logger.addHandler(
+logger_proxmox_lxc = logging.getLogger("proxmox_lxc")
+logger_proxmox_lxc.setLevel(logging.INFO)
+logger_proxmox_lxc.addHandler(
     GelfTcpHandler(
         host=GRAYLOG_SERVER_IP,
         port=GRAYLOG_PORT,
@@ -31,6 +31,7 @@ logger.addHandler(
     ),
 )
 
+logger = logging.getLogger("proxmox_lxc")
 display = Display()
 
 
@@ -60,6 +61,7 @@ class LxcNodeStatus(Enum):
     NO_NET = 4
     COMPLETE = 5
     STOP = 6
+    START = 7
 
 
 class LxcNodeAction(Enum):
@@ -92,12 +94,12 @@ def sanitize_hostname(hostname):
     return res
 
 
-def next_vmid(all_vmids):
+def next_vmid(all_vmids, min_idx=100, max_idx=10000):
     """
     find first available int from 100 that is not in the cluster vmids list
     """
-    idx = 100
-    while idx < 10000:
+    idx = min_idx
+    while idx < max_idx:
         if idx not in all_vmids:
             all_vmids.append(idx)
             return idx
@@ -132,6 +134,7 @@ class LxcNode:
         self.template = template
         self.address = address
         self.create_args = {}
+        self.update_job_args = {}
         self.error = None
         self.errors = []
         self._state = state  # This is the internal tracking state
@@ -149,6 +152,20 @@ class LxcNode:
         action,
         lookup,
     ):
+        """
+        Get and parse the output of the proxmox_vm_info module.
+
+        In proxmox there is no requirement to have unique "hostname" attribute,
+        internally it's tracking by vmid. However, from our point of view we don't know
+        any vmid until we have created nodes or done a vm_info query. Hence, we want
+        to determine if any duplicate names are going to cause a problem later.
+
+        :param cluster_info:
+        :param instance:
+        :param action:
+        :param lookup:
+        :return:
+        """
         vm_by_id = cluster_info["vms_by_id"].get(instance.get("vmid"))
         vm_by_name = cluster_info["vms_by_name"].get(instance["proxmox_hostname"])
         all_vmids = cluster_info["all_vmids"]
@@ -220,10 +237,40 @@ class LxcNode:
         )
 
         node.get_create_jobs(lookup)
+        node.get_update_job(lookup)
         return node
 
     def __str__(self):
         return f"name: {self.name} hostname: {self.proxmox_hostname} vmid: {self.vmid} status: {self.status} template: {self.template} address: {self.address} state: {self._state} error: {self.error} proxmox_exists: {self.proxmox_exists} invocation: {self.invocation}"
+
+    def get_update_job(self, lookup):
+        display.display("updating clone instance {}".format(self.instance["name"]))
+        arg_spec = [
+            "cores",
+            "cpus",
+            "cpuunits",
+            "ip_address",
+            "memory",
+            "memory",
+            "nameserver",
+            "netif",
+            "onboot",
+            "ostype",
+            "searchdomain",
+            "startup",
+            "swap",
+            "tags",
+            "timezone",
+        ]
+        valid_args = {k: v for k, v in self.instance.items() if k in arg_spec}
+        self.update_job_args.update(valid_args)
+        self.update_job_args.update(
+            {
+                "hostname": self.proxmox_hostname,
+                "vmid": self.vmid,
+                "update": True,
+            },
+        )
 
     def get_create_jobs(self, lookup):
         if any(key in self.instance for key in ["clone_from_name", "clone_from_id"]):
@@ -240,7 +287,6 @@ class LxcNode:
                     {
                         "clone": clone_vm["vmid"],
                         "clone_type": self.instance["clone_type"],
-                        "storage": "",
                         "hostname": self.instance["proxmox_hostname"],
                         "vmid": self.vmid,
                         "timeout": 10,
@@ -465,6 +511,11 @@ class LxcNode:
                         self.state = LxcNodeStatus.COMPLETE
                     elif not self.status:
                         self.state = LxcNodeStatus.NO_NET
+                    elif self.status == "stopped" and re.search(
+                        "Configured VM .*",
+                        data.get("msg", ""),
+                    ):
+                        self.state = LxcNodeStatus.START
                     elif self.status == "stopped":
                         self.state = LxcNodeStatus.STOPPED
                     elif self.status == "running" and not self.address:
@@ -486,7 +537,6 @@ class LxcNode:
                         self.handle_unknown_update(data, job_result)
             elif self.action == LxcNodeAction.DESTROY:
                 if self.vmid:
-                    display.display("DESTROY action with vmid")
                     if data.get("msg") and "is shutting down" in data["msg"]:
                         self.state = LxcNodeStatus.NO_NET
                     elif data.get("msg") and "does not exist" in data["msg"]:
@@ -640,43 +690,64 @@ r_vmid   '{vmid}'
                 return result
         elif self.state == LxcNodeStatus.STOPPED:
             if self.action == LxcNodeAction.CREATE:
-                result = {
-                    "name": self.name,
-                    "description": f"Sending start job for {self.proxmox_hostname} ({self.vmid})",
-                    "mod_args": {
-                        "vmid": self.vmid,
-                        "state": "started",
-                        "timeout": 120,
-                    },
-                    "module_name": "community.general.proxmox",
-                }
-                result["mod_args"].update(extra_args)
-                return result
+                if self.instance.get("update"):
+                    job = {
+                        "name": self.name,
+                        "description": f"Updating attributes for {self.proxmox_hostname} ({self.vmid})",
+                        "module_name": "community.general.proxmox",
+                        "mod_args": self.update_job_args,
+                    }
+                else:
+                    job = {
+                        "name": self.name,
+                        "description": f"Sending start job for {self.proxmox_hostname} ({self.vmid})",
+                        "module_name": "community.general.proxmox",
+                        "mod_args": {
+                            "vmid": self.vmid,
+                            "state": "started",
+                            "timeout": 120,
+                        },
+                    }
+                    job["mod_args"].update(extra_args)
+                return job
             elif self.action == LxcNodeAction.DESTROY:
                 result = {
                     "name": self.name,
                     "description": f"Sending destroy job for {self.proxmox_hostname} ({self.vmid})",
+                    "module_name": "community.general.proxmox",
                     "mod_args": {
                         "vmid": self.vmid,
                         "state": "absent",
                         "timeout": 120,
                     },
-                    "module_name": "community.general.proxmox",
                 }
                 result["mod_args"].update(extra_args)
                 return result
+        elif self.state == LxcNodeStatus.START:
+            job = {
+                "name": self.name,
+                "description": f"Sending start job for {self.proxmox_hostname} ({self.vmid})",
+                "module_name": "community.general.proxmox",
+                "mod_args": {
+                    "vmid": self.vmid,
+                    "state": "started",
+                    "timeout": 120,
+                },
+            }
+            job["mod_args"].update(extra_args)
+            return job
         elif self.state == LxcNodeStatus.NO_NET:
             job = {
                 "name": self.name,
                 "data_key": "proxmox_vms",
                 "description": f"Request vm_info job for {self.proxmox_hostname} ({self.vmid})",
+                "module_name": "community.general.proxmox_vm_info",
                 "mod_args": {
                     "type": "lxc",
                     "network": True,
                     "name": self.proxmox_hostname,
                     "vmid": self.vmid,
                 },
-                "module_name": "community.general.proxmox_vm_info",
             }
 
             job["mod_args"].update(extra_args)
@@ -685,12 +756,12 @@ r_vmid   '{vmid}'
             result = {
                 "name": self.name,
                 "description": f"Sending a stop job for {self.proxmox_hostname} ({self.vmid})",
+                "module_name": "community.general.proxmox",
                 "mod_args": {
                     "vmid": self.vmid,
                     "state": "stopped",
                     "timeout": 120,
                 },
-                "module_name": "community.general.proxmox",
             }
             result["mod_args"].update(extra_args)
             return result

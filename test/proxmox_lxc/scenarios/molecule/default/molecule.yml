@@ -8,6 +8,7 @@ platforms:
   - name: instance1
     type: clone
     clone_from_name: tmpl-rocky-9-default-v3
+    update: true
     netif:
       net0: "name=eth0,ip=dhcp,bridge=vmbr0,firewall=1,tag=11"
   - name: instance2
