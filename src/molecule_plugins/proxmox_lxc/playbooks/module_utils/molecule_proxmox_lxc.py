@@ -1,4 +1,4 @@
-# ruff: noqa: UP032
+# ruff: noqa: UP032, G001
 import json
 import logging
 import re
@@ -357,7 +357,11 @@ class LxcNode:
     @failed.setter
     def failed(self, value):
         if value != self._failed:
-            logger.debug(f"Setting failed from {self._failed} to {value}")
+            logger.debug(
+                "Setting failed from %s to %s",
+                self._failed,
+                value,
+            )
             self._failed = value
 
     @property
@@ -369,7 +373,9 @@ class LxcNode:
         if value == self._proxmox_exists:
             return
         logger.debug(
-            f"Setting proxmox_exists from {self._proxmox_exists} to {value}",
+            "Setting proxmox_exists from %s to %s",
+            self._proxmox_exists,
+            value,
         )
         self._proxmox_exists = value
 
@@ -382,7 +388,9 @@ class LxcNode:
         if value == self._state:
             return
         logger.debug(
-            f"Setting state from {Back.LIGHTMAGENTA_EX + str(self._state) + Style.RESET_ALL} to {Back.BLUE + str(value) + Style.RESET_ALL}",
+            "Setting state from %s to %s",
+            Back.LIGHTMAGENTA_EX + str(self._state) + Style.RESET_ALL,
+            Back.BLUE + str(value) + Style.RESET_ALL,
         )
         self._state = value
 
