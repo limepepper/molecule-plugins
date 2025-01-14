@@ -168,7 +168,7 @@ class LxcNode:
             and vm_by_id["name"] == vm_by_name["name"]
             and vm_by_id["vmid"] == vm_by_name["vmid"]
         ):
-            display.display("found matching proxmox_hostname and vmid")
+            logger.debug("found matching proxmox_hostname and vmid")
             vmid = instance.get("vmid")
             status = vm_by_id.get("status", "unknown")
             proxmox_exists = True  # To distinguish generated vmid. Maybe not use this
@@ -176,7 +176,7 @@ class LxcNode:
         # In the "create" case, the local instance does not have vmid info, and the
         # proxmox_hostname does not exist in the cluster info.
         elif not (vm_by_id or vm_by_name):
-            display.display("initialized new instance with new vmid")
+            logger.debug("initializing new instance with new vmid")
             vmid = next_vmid(all_vmids)
             proxmox_exists = False
             status = None
@@ -283,7 +283,7 @@ class LxcNode:
                 )
                 raise AnsibleActionFail(msg)
         elif "ostemplate" in self.instance:
-            display.display("processing full instance {}".format(self.instance["name"]))
+            logger.debug("processing full instance {}".format(self.instance["name"]))
             arg_spec = [
                 "cores",
                 "cpus",
@@ -357,7 +357,7 @@ class LxcNode:
     @failed.setter
     def failed(self, value):
         if value != self._failed:
-            display.display(f"Setting failed from {self._failed} to {value}")
+            logger.debug(f"Setting failed from {self._failed} to {value}")
             self._failed = value
 
     @property
@@ -368,7 +368,7 @@ class LxcNode:
     def proxmox_exists(self, value):
         if value == self._proxmox_exists:
             return
-        display.display(
+        logger.debug(
             f"Setting proxmox_exists from {self._proxmox_exists} to {value}",
         )
         self._proxmox_exists = value
@@ -381,7 +381,7 @@ class LxcNode:
     def state(self, value):
         if value == self._state:
             return
-        display.display(
+        logger.debug(
             f"Setting state from {Back.LIGHTMAGENTA_EX + str(self._state) + Style.RESET_ALL} to {Back.BLUE + str(value) + Style.RESET_ALL}",
         )
         self._state = value
@@ -415,13 +415,13 @@ class LxcNode:
             else:
                 data = job_result.get("data")
         except Exception as e:
-            display.display(
+            display.error(
                 "failed to get data from job_result {job_result}".format(
                     job_result=job_result,
                 ),
             )
-            display.display("Exception: {e}".format(e=e))
-            display.display("node: {node}".format(node=self))
+            display.error("Exception: {e}".format(e=e))
+            display.error("node: {node}".format(node=self))
             raise
 
         self.show_update(job_result, data)

@@ -2,7 +2,6 @@
 
 import datetime
 import os
-import syslog
 import time
 from collections import defaultdict
 
@@ -64,7 +63,6 @@ class AnsibleAsyncExecutor:
                     task_vars=task_vars,
                     wrap_async=False,
                 )
-                syslog.syslog(f"res {res}")
                 if res.get("finished", 0) == 1:
                     if res.get("failed", False):
                         job_results[key]["state"] = "failed"
