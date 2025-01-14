@@ -22,7 +22,6 @@ from molecule_plugins.proxmox_lxc.playbooks.module_utils.molecule_proxmox_lxc im
     LxcNode,
     LxcNodeAction,
     LxcNodeStatus,
-    function_from_module_utils,
     get_cluster_info,
 )
 
@@ -124,8 +123,6 @@ class ActionModule(ActionBase):
                 timeout=self._task.timeout,
             ),
         )
-
-        function_from_module_utils()
 
         lookup = self._templar.copy_with_new_env(
             globals=task_vars,
