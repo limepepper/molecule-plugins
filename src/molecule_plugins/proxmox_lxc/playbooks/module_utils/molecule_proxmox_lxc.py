@@ -11,32 +11,14 @@ from ansible.errors import (
 )
 from ansible.utils.display import Display
 from colorama import Back, Fore, Style
-from pygelf import GelfTcpHandler
 from rich.console import Console
 
 from molecule_plugins.proxmox_lxc.playbooks.module_utils.async_executor import (
     AnsibleAsyncExecutor,
 )
 
-GRAYLOG_PORT = 12201
-GRAYLOG_SERVER_IP = "docker.lan"
-
-logger_proxmox_lxc = logging.getLogger("proxmox_lxc")
-logger_proxmox_lxc.setLevel(logging.INFO)
-logger_proxmox_lxc.addHandler(
-    GelfTcpHandler(
-        host=GRAYLOG_SERVER_IP,
-        port=GRAYLOG_PORT,
-        include_extra_fields=True,
-    ),
-)
-
 logger = logging.getLogger("proxmox_lxc")
 display = Display()
-
-
-def function_from_module_utils():
-    return "This function is from module_utils"
 
 
 def rich_to_ansi(data: dict) -> str:
