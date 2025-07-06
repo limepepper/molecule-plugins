@@ -1,0 +1,22 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: Collect minimal facts if not already
+      tags: always
+      when: >
+        ansible_distribution is not defined or
+        ansible_default_ipv4 is not defined
+      ansible.builtin.setup:
+        gather_subset:
+          - min
+          - network
+
+    - name: Install package
+      ansible.builtin.package:
+        name: curl
+
+    - name: Show the hostname
+      ansible.builtin.command: hostname
+      changed_when: false

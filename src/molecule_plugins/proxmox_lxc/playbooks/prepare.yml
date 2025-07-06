@@ -1,0 +1,12 @@
+---
+- name: Prepare
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: "Waiting for instance ssh connection."
+      ansible.builtin.wait_for_connection:
+        timeout: 15
+
+    - name: Show the hostname
+      ansible.builtin.command: hostname
+      changed_when: false

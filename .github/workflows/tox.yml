@@ -11,6 +11,7 @@ on:
     branches: # any integration branch but not tag
       - "main"
   pull_request:
+  workflow_dispatch:
 
 jobs:
   pre:
@@ -35,7 +36,7 @@ jobs:
     runs-on: ubuntu-22.04
     needs: pre
     env:
-      PYTEST_REQPASS: 14
+      PYTEST_REQPASS: 15
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.pre.outputs.matrix) }}

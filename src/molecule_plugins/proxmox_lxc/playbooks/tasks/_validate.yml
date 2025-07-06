@@ -1,0 +1,89 @@
+---
+- name: Validate provided variables
+  tags: proxmox-lxc-validate
+  block:
+    - name: Check vars are set
+      ansible.builtin.assert:
+        that:
+          - proxmox_conf
+          - proxmox_conf.api_host
+          - proxmox_conf.api_user
+          - proxmox_conf.api_password
+          - proxmox_conf.api_token_id
+          - proxmox_conf.api_token_secret
+          - proxmox_conf.node
+        fail_msg: |
+          One or more required variables are not set {{ proxmox_conf | dict2items | selectattr("value", "==", "") | list }}.
+          Please set the following variables in your molecule.yml:
+          - driver:
+              name: molecule-proxmox-lxc
+              options:
+                api_host: "your_proxmox_host"
+                api_user: "your_proxmox_user"
+                api_password: "your_proxmox_password"
+                api_token_id: "your_proxmox_token_id"
+                api_token_secret: "your_proxmox_token_secret"
+                node: "your_proxmox_node"
+
+    - name: Need to be provided with ostemplate if not a clone
+      when: instance.clone_from_name is not defined
+      ansible.builtin.assert:
+        that:
+          - instance.ostemplate is defined and instance.ostemplate
+          - instance.storage is defined or instance.disk is defined or instance.disk_volume is defined
+        #          - (instance.storage | d(false)) or (instance.disk | d(false)) or (instance.disk_volume | d(false))
+        fail_msg: |
+          One or more required variables are not set or are set incorrectly.
+          instance.ostemplate: "{{ instance.ostemplate | default('') }}"
+          instance.storage: "{{ instance.storage | default('') }}"
+          Note: storage cannot be "local" as that doesn't support ct volumes
+          Please set the following variables in your molecule.yml:
+          ---
+          driver:
+            name: molecule-proxmox-lxc
+            options:
+              ostemplate: local:vztmpl/rockylinux-9-default_20240912_amd64.tar.xz
+              storage: local-zfs
+            # or...
+          platforms:
+            - name: instance
+              ostemplate: local:vztmpl/rockylinux-9-default_20240912_amd64.tar.xz
+              storage: local-zfs
+              ...
+
+          {{ instance | to_nice_yaml }}
+      loop_control:
+        loop_var: instance
+      loop: "{{ proxmox_instances }}"
+
+    - name: Need to be provided with clone_from_name if type is clone
+      when: instance.clone_from_name is defined
+      ansible.builtin.assert:
+        that:
+          - instance.clone_from_name
+        fail_msg: |
+          One or more required variables are not set:
+            instance.ostemplate: "{{ instance.ostemplate | default('') }}"
+            instance.clone: "{{ instance.clone | default('') }}"
+            instance.clone_from_name: "{{ instance.clone_from_name | default('') }}"
+          for instance.type: "{{ instance.type | default('') }}".
+          Please set the following variables in your molecule.yml:
+          ---
+          driver:
+            name: molecule-proxmox-lxc
+            options:
+              ostemplate: local:vztmpl/rockylinux-9-default_20240912_amd64.tar.xz
+              # or
+            clone: true
+            clone_from_name: "my-lxc-template-name"
+            # or...
+          platforms:
+            - name: instance
+              ostemplate: local:vztmpl/rockylinux-9-default_20240912_amd64.tar.xz
+              # or...
+              clone: true
+              clone_from_name: "my-lxc-template-name"
+              ...
+      loop_control:
+        loop_var: instance
+      loop: "{{ proxmox_instances }}"

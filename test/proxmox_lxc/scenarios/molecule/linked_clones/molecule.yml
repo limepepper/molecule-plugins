@@ -1,0 +1,39 @@
+---
+driver:
+  name: molecule-proxmox-lxc
+  property: value
+dependency:
+  name: galaxy
+platforms:
+  - name: instance1
+    type: clone
+    clone_from_name: tmpl-rocky-9-default-v3
+  - name: instance2
+    type: clone
+    clone_from_name: tmpl-rocky-9-default-v3
+  - name: instance3
+    type: clone
+    clone_from_name: tmpl-rocky-9-default-v3
+  - name: instance4
+    type: clone
+    clone_from_name: tmpl-rocky-9-default-v3
+  - name: instance5
+    type: clone
+    clone_from_name: tmpl-rocky-9-default-v3
+  - name: instance6
+    type: clone
+    clone_from_name: tmpl-rocky-9-default-v3
+  - name: instance7
+    type: clone
+    clone_from_name: tmpl-rocky-9-default-v3
+  - name: instance8
+    type: clone
+    clone_from_name: tmpl-rocky-9-default-v3
+provisioner:
+  name: ansible
+  config_options:
+    defaults:
+      verbosity: 2
+      stdout_callback: yaml
+      # callbacks_enabled: ansible.posix.profile_tasks
+      diff: true

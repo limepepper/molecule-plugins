@@ -1,0 +1,75 @@
+---
+- name: Destroy
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  # no_log: "{{ molecule_no_log }}"
+  vars:
+    _proxmox_changed: false # internal flag for tracking
+  vars_files:
+    - vars/main.yml
+  handlers:
+    - name: Proxmox changed
+      ansible.builtin.set_fact:
+        _proxmox_changed: true
+  tasks:
+    - name: Touch instance config to avoid errors
+      ansible.builtin.copy:
+        dest: "{{ molecule_instance_config }}"
+        content: |
+          ---
+          # Molecule managed
+          []
+        mode: "0600"
+        force: false
+
+    - name: Read the instance config
+      ansible.builtin.slurp:
+        src: "{{ molecule_instance_config }}"
+      register: _instance_config
+
+    - name: Set the instance config
+      ansible.builtin.set_fact:
+        _conf: "{{ _instance_config['content'] | b64decode | from_yaml }}"
+
+    - name: Set the instance config
+      ansible.builtin.set_fact:
+        _instance_conf: "{{ _conf if _conf else [] }}"
+
+    - name: Create Instance Config # noqa: syntax-check[unknown-module] syntax-check[unknown-module]
+      instance_config:
+        env_prefix: "PROXMOX_"
+        driver_defaults: "{{ molecule_yml.driver.driver_defaults | default({}) }}"
+        proxmox_conf: "{{ molecule_yml.driver.proxmox_conf | default({}) }}"
+        platforms: "{{ molecule_yml.platforms }}"
+        scenario_name: "{{ molecule_yml.scenario.name }}"
+        instance_config: "{{ _instance_conf | from_yaml }}"
+      register: instance_config
+
+    - name: Destroy the Instances
+      molecule_proxmox_lxc:
+        proxmox_instances: "{{ instance_config.instances }}"
+        proxmox_conf: "{{ instance_config.proxmox_conf }}"
+        state: absent
+      register: server
+
+    #    - name: Run the Destroy task
+    #      ansible.builtin.include_tasks: tasks/main.yml
+    #      vars:
+    #        proxmox_instances: "{{ _instance_conf }}"
+    #        proxmox_action: destroy
+
+    - name: Populate instance config
+      # when: server.changed | default(false) | bool # noqa no-handler
+      ansible.builtin.set_fact:
+        instance_conf: []
+
+    - name: Dump instance config
+      ansible.builtin.copy:
+        content: |
+          ---
+          # Molecule managed
+
+          {{ instance_conf | to_json | from_json | to_nice_yaml }}
+        dest: "{{ molecule_instance_config }}"
+        mode: "0600"

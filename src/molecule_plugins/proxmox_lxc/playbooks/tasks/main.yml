@@ -1,0 +1,48 @@
+---
+- name: Proxmox Instances Action
+  tags: proxmox-lxc
+  block:
+    - name: Merge Provided Configs
+      ansible.builtin.include_tasks: "_merge.yml"
+
+    #    - name: Validate Provided Configs
+    #      ansible.builtin.include_tasks: "_validate.yml"
+
+    - name: Create proxmox instances
+      tags: proxmox-lxc
+      module_defaults:
+        community.general.proxmox_vm_info:
+          api_host: "{{ proxmox_conf.api_host }}"
+          api_user: "{{ proxmox_conf.api_user }}"
+          api_password: "{{ proxmox_conf.api_password }}"
+          node: "{{ proxmox_conf.node }}"
+        community.general.proxmox:
+          api_host: "{{ proxmox_conf.api_host }}"
+          api_user: "{{ proxmox_conf.api_user }}"
+          api_password: "{{ proxmox_conf.api_password }}"
+          node: "{{ proxmox_conf.node }}"
+        ansible.builtin.uri:
+          headers:
+            # yamllint disable rule:quoted-strings
+            # yamllint disable rule:line-length
+            Authorization: "PVEAPIToken={{ proxmox_conf.api_user }}!{{ proxmox_conf.api_token_id }}={{ proxmox_conf.api_token_secret }}"
+            # yamllint enable rule:quoted-strings
+            # yamllint enable rule:line-length
+      block:
+        - name: Create empty config
+          ansible.builtin.set_fact:
+            server:
+              results: []
+
+        - name: Process Lxc instances
+          ansible.builtin.include_tasks: "_{{ proxmox_action }}.yml"
+          loop_control:
+            loop_var: instance
+          loop: "{{ proxmox_instances }}"
+
+        - name: Set the changed flag
+          ansible.builtin.set_fact:
+            server: "{{ server | combine({'changed': true}) }}"
+
+        - name: Notify the update handler
+          ansible.builtin.meta: flush_handlers

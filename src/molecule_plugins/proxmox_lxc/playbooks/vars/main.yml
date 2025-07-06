@@ -1,0 +1,21 @@
+---
+driver_opts: "{{ molecule_yml.driver.options }}"
+proxmox_conf:
+  api_host: '{{ driver_opts.api_host | d(lookup("env", "PROXMOX_API_HOST")) }}'
+  api_user: '{{ driver_opts.api_user | d(lookup("env", "PROXMOX_API_USER")) }}'
+  api_password: '{{ driver_opts.api_password | d(lookup("env", "PROXMOX_API_PASSWORD")) }}'
+  api_token_id: '{{ driver_opts.api_token_id | d(lookup("env", "PROXMOX_API_TOKEN_ID")) }}'
+  api_token_secret: '{{ driver_opts.api_token_secret | d(lookup("env", "PROXMOX_API_TOKEN_SECRET")) }}'
+  node: '{{ driver_opts.node | d(lookup("env", "PROXMOX_API_NODE")) }}'
+key_defaults:
+  - ~/.ssh/id_ed25519
+  - ~/.ssh/id_ecdsa
+  - ~/.ssh/id_rsa
+driver_env:
+  identity_file: "{{ lookup('env', 'PROXMOX_CT_IDENTITY_FILE') or
+    lookup('ansible.builtin.first_found', key_defaults) }}"
+  host_password: "{{ lookup('env', 'PROXMOX_CT_PASSWORD') or omit }}"
+  type: "{{ lookup('env', 'PROXMOX_CT_TYPE') or 'instance' }}"
+  host_user: "{{ driver_opts.host_user | d(lookup('env', 'PROXMOX_CT_USER') or 'root') }}"
+  host_port: "{{ driver_opts.host_port | d(lookup('env', 'PROXMOX_CT_PORT') or 22) }}"
+  netifname: "{{ driver_opts.netifname | d(lookup('env', 'PROXMOX_CT_NETIFNAME') or 'eth0') }}"
